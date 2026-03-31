@@ -76,13 +76,11 @@ async function main() {
     const result = await apiRequest(token, 'GET', nextUrl, null);
     pagesScanned++;
 
-    // Build a map from reviewId → response object.
-    // Apple's API quirk: review.relationships.response has `links` but NOT `data`,
-    // so we can't go review→response. Instead, each response in `included` has
-    // relationships.review.data.id pointing back to the review it belongs to.
-    const responseByReviewId = buildResponseMap(result.included || []);
+    const reviewsPage = result.data || [];
+    // Build a map from reviewId → response object using ID pattern matching.
+    const responseByReviewId = buildResponseMap(result.included || [], reviewsPage);
 
-    for (const review of (result.data || [])) {
+    for (const review of reviewsPage) {
       const createdDate = review.attributes?.createdDate;
       if (!createdDate) continue;
 
@@ -172,22 +170,35 @@ function buildInitialUrl(appId, rating, territory, limit) {
 /**
  * Build a map: reviewId → response object.
  *
- * Each customerReviewResponse in `included` has:
- *   relationships.review.data.id  → the review it belongs to
+ * Apple's API quirk: responses in `included` don't have relationships links.
+ * But response IDs encode the review ID in their structure.
+ * Pattern: response ID shares middle segments with review ID
+ *   Review:   0000003e-985a-0603-3c75-6fb300000000
+ *   Response: 4000003e-985a-0603-3c75-6fb303a05d46  (shares 3c75-6fb3 at positions 9-25)
  *
- * We key the map by that review ID so we can look up:
- *   "does this review have a response?"
+ * We match by extracting the middle segment from each response ID,
+ * then finding the review with the matching segment.
  */
-function buildResponseMap(included) {
+function buildResponseMap(included, reviews) {
+  const responses = included.filter(i => i.type === 'customerReviewResponses');
   const map = {};
-  for (const item of included) {
-    if (item.type === 'customerReviewResponses') {
-      const reviewId = item.relationships?.review?.data?.id;
-      if (reviewId) {
-        map[reviewId] = item;
-      }
+  
+  for (const review of reviews) {
+    const reviewId = review.id;
+    // Extract middle segment (positions 9-25 in UUID string)
+    // e.g., "3c75-6fb3" from "0000003e-985a-0603-3c75-6fb300000000"
+    const reviewSegment = reviewId.substring(9, 25);
+    
+    // Find response with matching segment
+    const matching = responses.find(resp => {
+      return resp.id.substring(9, 25) === reviewSegment;
+    });
+    
+    if (matching) {
+      map[reviewId] = matching;
     }
   }
+  
   return map;
 }
 
