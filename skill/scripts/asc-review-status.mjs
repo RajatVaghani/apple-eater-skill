@@ -76,7 +76,11 @@ async function main() {
     const result = await apiRequest(token, 'GET', nextUrl, null);
     pagesScanned++;
 
-    const responseMap = buildResponseMap(result.included || []);
+    // Build a map from reviewId → response object.
+    // Apple's API quirk: review.relationships.response has `links` but NOT `data`,
+    // so we can't go review→response. Instead, each response in `included` has
+    // relationships.review.data.id pointing back to the review it belongs to.
+    const responseByReviewId = buildResponseMap(result.included || []);
 
     for (const review of (result.data || [])) {
       const createdDate = review.attributes?.createdDate;
@@ -92,8 +96,7 @@ async function main() {
 
       totalFetched++;
 
-      const responseId = review.relationships?.response?.data?.id;
-      const responseData = responseId ? responseMap[responseId] : null;
+      const responseData = responseByReviewId[review.id] || null;
 
       const entry = {
         id: review.id,
@@ -107,7 +110,7 @@ async function main() {
 
       if (responseData) {
         entry.developerResponse = {
-          id: responseId,
+          id: responseData.id,
           responseBody: responseData.attributes?.responseBody,
           lastModifiedDate: responseData.attributes?.lastModifiedDate,
         };
@@ -166,11 +169,23 @@ function buildInitialUrl(appId, rating, territory, limit) {
   return `/v1/apps/${appId}/customerReviews?${params.toString()}`;
 }
 
+/**
+ * Build a map: reviewId → response object.
+ *
+ * Each customerReviewResponse in `included` has:
+ *   relationships.review.data.id  → the review it belongs to
+ *
+ * We key the map by that review ID so we can look up:
+ *   "does this review have a response?"
+ */
 function buildResponseMap(included) {
   const map = {};
   for (const item of included) {
     if (item.type === 'customerReviewResponses') {
-      map[item.id] = item;
+      const reviewId = item.relationships?.review?.data?.id;
+      if (reviewId) {
+        map[reviewId] = item;
+      }
     }
   }
   return map;
