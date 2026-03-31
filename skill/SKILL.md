@@ -60,11 +60,23 @@ Walk them through this:
 1. **Go to App Store Connect** at [appstoreconnect.apple.com](https://appstoreconnect.apple.com)
 2. **Navigate to Users and Access → Integrations → App Store Connect API**
 3. **Click the "+" button** to create a new API key
-4. **Choose the right role:**
-   - **Admin** — full access (needed if you want to create analytics report requests)
-   - **Sales and Reports** — can read sales data and download analytics reports
-   - **Finance** — can read financial reports
-   - For review replies, you need **Admin** or **Customer Support** role
+4. **Choose the right role — this matters a lot:**
+
+   | Role | Sales Reports | Analytics Reports | Reviews | Reply to Reviews | Create Analytics Requests |
+   |------|:---:|:---:|:---:|:---:|:---:|
+   | **Admin** | ✓ | ✓ | ✓ | ✓ | ✓ |
+   | **App Manager** | ✗ | ✗ | ✓ | ✓ | ✗ |
+   | **Sales and Reports** | ✓ | ✓ (download only) | ✗ | ✗ | ✗ |
+   | **Finance** | ✓ (finance only) | ✗ | ✗ | ✗ | ✗ |
+   | **Customer Support** | ✗ | ✗ | ✓ | ✓ | ✗ |
+
+   **RECOMMENDED: Use Admin role.** This is the only role that can do everything — create analytics report requests, download reports, read and reply to reviews, AND pull sales data. If the user's key returns 403 on any endpoint, the fix is almost always to create a new key with Admin role.
+
+   If the user is security-conscious and doesn't want Admin, they need at MINIMUM two keys:
+   - **Sales and Reports** — for sales data + downloading already-created analytics reports
+   - **App Manager** or **Customer Support** — for reviews and replies
+
+   But a single **Admin** key is simplest and covers all use cases.
 5. **Download the `.p8` private key file** — this is a ONE-TIME download. If lost, you must revoke and create a new key.
 6. **Note the Key ID** displayed next to the key
 7. **Find your Issuer ID** — shown at the top of the API keys page
@@ -178,7 +190,11 @@ node scripts/asc-analytics.mjs download <instanceId>
 - `FRAMEWORK_USAGE` — how your app uses Apple APIs
 - `PERFORMANCE` — app performance metrics
 
-**IMPORTANT:** The first report request takes **1-2 days** before data appears. Tell the user this upfront. After that, ONGOING reports refresh daily.
+**IMPORTANT — Two things to know about analytics reports:**
+
+1. **Admin role required to CREATE requests.** If `asc-analytics.mjs request` returns a 403 error, the API key does not have the Admin role. The user must create a new API key with the **Admin** role in App Store Connect → Users and Access → Integrations → App Store Connect API. The old key can stay for sales reports. Tell the user: "Your current API key can pull sales data but doesn't have permission to request analytics reports. You need to create a new key with the Admin role. Go to App Store Connect → Users and Access → Integrations → App Store Connect API → click '+' → select Admin → download the new .p8 file → update your credentials."
+
+2. **First request takes 1-2 days.** The very first analytics report request needs time to generate. After that, ONGOING reports refresh daily. Tell the user this upfront so they don't think it's broken.
 
 ### Review Examples
 
@@ -353,7 +369,7 @@ If something fails, check these in order:
 | HTTP Code | Meaning | Fix |
 |-----------|---------|-----|
 | 401 | Invalid/expired token | Check Issuer ID, Key ID, P8 file. Regenerate token. |
-| 403 | Insufficient permissions | API key needs a different role (Admin, Sales, etc.) |
+| 403 | Insufficient permissions | **Most common issue.** The API key's role can't access this endpoint. Create a new key with **Admin** role. See the role table in Step 2 of setup. |
 | 404 | Resource not found | Check the ID you passed. For sales: check vendor number and date. |
 | 409 | Conflict | Duplicate analytics report request. Use existing one. |
 | 429 | Rate limited | Wait a few minutes and retry. |

@@ -68,7 +68,28 @@ async function doRequest(token) {
     },
   };
 
-  const result = await apiRequest(token, 'POST', '/v1/analyticsReportRequests', body);
+  let result;
+  try {
+    result = await apiRequest(token, 'POST', '/v1/analyticsReportRequests', body);
+  } catch (err) {
+    if (err.message.includes('403')) {
+      exitError(
+        'PERMISSION DENIED: Your API key cannot create analytics report requests.\n' +
+        'This endpoint requires the ADMIN role.\n' +
+        'Fix: Go to App Store Connect → Users and Access → Integrations → App Store Connect API\n' +
+        '     → Create a new key with the "Admin" role → download the .p8 file → update credentials.\n' +
+        'Your current key can still be used for sales reports — this only affects analytics.'
+      );
+    }
+    if (err.message.includes('409')) {
+      exitError(
+        'A report request already exists for this app.\n' +
+        'Use "node asc-analytics.mjs list <appId>" to see existing requests.\n' +
+        'You only need one ONGOING request per app — it generates all report types automatically.'
+      );
+    }
+    throw err;
+  }
   outputJson({
     ok: true,
     action: 'request',

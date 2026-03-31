@@ -228,6 +228,8 @@ Request → Reports → Instances → Segments → Download URLs
 POST /v1/analyticsReportRequests
 ```
 
+**Required role: Admin.** Sales and Reports role CANNOT create requests (returns 403). Only Admin can POST here.
+
 **Request body:**
 ```json
 {
