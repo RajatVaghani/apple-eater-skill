@@ -144,6 +144,7 @@ All scripts live in this skill's `scripts/` directory. They output JSON to stdou
 | `asc-reviews.mjs` | List customer reviews | `node scripts/asc-reviews.mjs <appId> [--rating 1] [--territory US]` |
 | `asc-reply-review.mjs` | Reply to a customer review | `node scripts/asc-reply-review.mjs <reviewId> "response text"` |
 | `asc-app-versions.mjs` | List version history and states | `node scripts/asc-app-versions.mjs <appId>` |
+| `asc-review-status.mjs` | Find unanswered/answered reviews in a date range | `node scripts/asc-review-status.mjs <appId> [--status unanswered]` |
 | `asc-analytics.mjs` | Manage analytics report requests | `node scripts/asc-analytics.mjs <action> <id>` |
 
 ### Sales Report Examples
@@ -209,6 +210,37 @@ node scripts/asc-reviews.mjs 6446048195 --rating 1 --territory US
 node scripts/asc-reviews.mjs 6446048195 --sort rating --limit 20
 ```
 
+### Review Status Examples (finding unanswered reviews)
+
+```bash
+# All unanswered reviews from the last 30 days (default)
+node scripts/asc-review-status.mjs 6446048195
+
+# Unanswered 1-star reviews from March 2026
+node scripts/asc-review-status.mjs 6446048195 --from 2026-03-01 --to 2026-03-31 --rating 1
+
+# All reviews that already have a developer response
+node scripts/asc-review-status.mjs 6446048195 --status answered
+
+# Full picture — both answered and unanswered in a date range
+node scripts/asc-review-status.mjs 6446048195 --status all --from 2026-01-01
+
+# Unanswered reviews from a specific territory
+node scripts/asc-review-status.mjs 6446048195 --territory US --status unanswered
+```
+
+The output includes a `summary` object with response rate:
+```json
+{
+  "summary": {
+    "totalInRange": 142,
+    "unanswered": 98,
+    "answered": 44,
+    "responseRate": "31%"
+  }
+}
+```
+
 ---
 
 ## Analysis Workflows
@@ -227,7 +259,9 @@ Summarize: downloads, revenue, new reviews (especially negative ones), and relea
 
 This is the skill's killer feature — no other tool lets an AI agent reply to App Store reviews.
 
-1. Pull recent reviews: `asc-reviews.mjs <appId> --sort -createdDate --limit 20`
+1. Find reviews that need a response: `asc-review-status.mjs <appId> --status unanswered --from 2026-03-01`
+   - This fetches reviews in the date range and tells you exactly which ones have no developer response
+   - Output includes a `summary` with total, unanswered count, answered count, and response rate
 2. Flag reviews that need attention:
    - 1-2 star reviews (unhappy users)
    - Reviews mentioning bugs or crashes
